@@ -1,5 +1,5 @@
 [package]
-name = "secp256k1-sys"
+name = "cashweb-secp256k1-sys"
 version = "0.1.2"
 authors = [ "Dawid Ciężarkiewicz <dpc@ucore.info>",
             "Andrew Poelstra <apoelstra@wpsoftware.net>",
@@ -7,7 +7,7 @@ authors = [ "Dawid Ciężarkiewicz <dpc@ucore.info>",
 license = "CC0-1.0"
 homepage = "https://github.com/rust-bitcoin/rust-secp256k1/"
 repository = "https://github.com/rust-bitcoin/rust-secp256k1/"
-documentation = "https://docs.rs/secp256k1-sys/"
+documentation = "https://docs.rs/cashweb-secp256k1-sys/"
 description = "FFI for Pieter Wuille's `libsecp256k1` library."
 keywords = [ "secp256k1", "libsecp256k1", "ffi" ]
 readme = "README.md"
