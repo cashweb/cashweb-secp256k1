@@ -1,6 +1,6 @@
 [package]
 
-name = "secp256k1"
+name = "cashweb-secp256k1"
 version = "0.17.2"
 authors = [ "Dawid Ciężarkiewicz <dpc@ucore.info>",
             "Andrew Poelstra <apoelstra@wpsoftware.net>" ]
@@ -41,26 +41,26 @@ fuzztarget = ["secp256k1-sys/fuzztarget"]
 secp256k1-sys = { version = "0.1.1", default-features = false, path = "./secp256k1-sys" }
 
 [dev-dependencies]
-rand = "0.6"
-rand_core = "0.4"
-serde_test = "1.0"
-bitcoin_hashes = "0.7"
+rand = "0.7.3"
+rand_core = "0.5.1"
+serde_test = "1.0.114"
+bitcoin_hashes = "0.7.6"
 
 [target.wasm32-unknown-unknown.dev-dependencies]
-wasm-bindgen-test = "0.3"
-rand = { version = "0.6", features = ["wasm-bindgen"] }
+wasm-bindgen-test = "0.3.14"
+rand = { version = "0.7.3", features = ["wasm-bindgen"] }
 
 [dependencies.bitcoin_hashes]
-version = "0.7"
+version = "0.7.6"
 optional = true
 
 [dependencies.rand]
-version = "0.6"
+version = "0.7.3"
 optional = true
 default-features = false
 
 [dependencies.serde]
-version = "1.0"
+version = "1.0.114"
 optional = true
 default-features = false
 

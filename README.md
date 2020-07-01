@@ -1,6 +1,10 @@
-[![Build Status](https://travis-ci.org/rust-bitcoin/rust-secp256k1.png?branch=master)](https://travis-ci.org/rust-bitcoin/rust-secp256k1)
+[![Build Status](https://travis-ci.org/cashweb/cashweb-secp256k1.png?branch=master)](https://travis-ci.org/cashweb/cashweb-secp256k1)
 
-[Full documentation](https://docs.rs/secp256k1/)
+[Full documentation](https://docs.rs/cashweb-secp256k1/)
+
+**NOTE**
+
+This is a fork of https://github.com/rust-bitcoin/rust-secp256k1, the alterations are minor and relating directly to keeping up-to-date dependencies.
 
 ### rust-secp256k1
 
