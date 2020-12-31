@@ -16,12 +16,12 @@
 //! Support for shared secret computations
 //!
 
+use core::ops::{Deref, FnMut};
 use core::ptr;
-use core::ops::{FnMut, Deref};
 
-use key::{SecretKey, PublicKey};
+use cashweb_secp256k1_sys::types::{c_int, c_uchar, c_void};
 use ffi::{self, CPtr};
-use secp256k1_sys::types::{c_int, c_uchar, c_void};
+use key::{PublicKey, SecretKey};
 
 /// A tag used for recovering the public key from a compact signature
 #[derive(Copy, Clone)]
@@ -31,15 +31,13 @@ pub struct SharedSecret {
 }
 impl_raw_debug!(SharedSecret);
 
-
 // This implementes `From<N>` for all `[u8; N]` arrays from 128bits(16 byte) to 2048bits allowing known hash lengths.
 // Lower than 128 bits isn't resistant to collisions any more.
 impl_from_array_len!(SharedSecret, 256, (16 20 28 32 48 64 96 128 256));
 
 impl SharedSecret {
-
     /// Create an empty SharedSecret
-    pub(crate) fn empty() ->  SharedSecret {
+    pub(crate) fn empty() -> SharedSecret {
         SharedSecret {
             data: [0u8; 256],
             len: 0,
@@ -59,6 +57,11 @@ impl SharedSecret {
     /// Get the len of the used data.
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// True if the underlying data buffer is empty.
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     /// Set the length of the object.
@@ -87,8 +90,12 @@ impl Deref for SharedSecret {
     }
 }
 
-
-unsafe extern "C" fn c_callback(output: *mut c_uchar, x: *const c_uchar, y: *const c_uchar, _data: *mut c_void) -> c_int {
+unsafe extern "C" fn c_callback(
+    output: *mut c_uchar,
+    x: *const c_uchar,
+    y: *const c_uchar,
+    _data: *mut c_void,
+) -> c_int {
     ptr::copy_nonoverlapping(x, output, 32);
     ptr::copy_nonoverlapping(y, output.offset(32), 32);
     1
@@ -100,7 +107,7 @@ impl SharedSecret {
     pub fn new(point: &PublicKey, scalar: &SecretKey) -> SharedSecret {
         let mut ss = SharedSecret::empty();
         let res = unsafe {
-             ffi::secp256k1_ecdh(
+            ffi::secp256k1_ecdh(
                 ffi::secp256k1_context_no_precomp,
                 ss.get_data_mut_ptr(),
                 point.as_c_ptr(),
@@ -116,14 +123,13 @@ impl SharedSecret {
         ss
     }
 
-
     /// Creates a new shared secret from a pubkey and secret key with applied custom hash function
     /// The custom hash function must be in the form of `fn(x: [u8;32], y: [u8;32]) -> SharedSecret`
     /// `SharedSecret` can be easily created via the `From` impl from arrays.
     /// # Examples
     /// ```
-    /// # use secp256k1::ecdh::SharedSecret;
-    /// # use secp256k1::{Secp256k1, PublicKey, SecretKey};
+    /// # use cashweb_secp256k1::ecdh::SharedSecret;
+    /// # use cashweb_secp256k1::{Secp256k1, PublicKey, SecretKey};
     /// # fn sha2(_a: &[u8], _b: &[u8]) -> [u8; 32] {[0u8; 32]}
     /// # let secp = Secp256k1::signing_only();
     /// # let secret_key = SecretKey::from_slice(&[3u8; 32]).unwrap();
@@ -136,8 +142,14 @@ impl SharedSecret {
     /// });
     ///
     /// ```
-    pub fn new_with_hash<F>(point: &PublicKey, scalar: &SecretKey, mut hash_function: F) -> SharedSecret
-        where F: FnMut([u8; 32], [u8; 32]) -> SharedSecret {
+    pub fn new_with_hash<F>(
+        point: &PublicKey,
+        scalar: &SecretKey,
+        mut hash_function: F,
+    ) -> SharedSecret
+    where
+        F: FnMut([u8; 32], [u8; 32]) -> SharedSecret,
+    {
         let mut xy = [0u8; 64];
 
         let res = unsafe {
@@ -146,7 +158,7 @@ impl SharedSecret {
                 xy.as_mut_ptr(),
                 point.as_ptr(),
                 scalar.as_ptr(),
-                c_callback,
+                Some(c_callback),
                 ptr::null_mut(),
             )
         };
@@ -164,10 +176,12 @@ impl SharedSecret {
 
 #[cfg(test)]
 mod tests {
-    use rand::thread_rng;
-    use super::SharedSecret;
     use super::super::Secp256k1;
-    use Error;
+    use super::SharedSecret;
+    use rand::thread_rng;
+
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn ecdh() {
@@ -187,10 +201,10 @@ mod tests {
         let s = Secp256k1::signing_only();
         let (sk1, pk1) = s.generate_keypair(&mut thread_rng());
         let (sk2, pk2) = s.generate_keypair(&mut thread_rng());
-        
-        let sec1 = SharedSecret::new_with_hash(&pk1, &sk2, |x,_| x.into());
-        let sec2 = SharedSecret::new_with_hash(&pk2, &sk1, |x,_| x.into());
-        let sec_odd = SharedSecret::new_with_hash(&pk1, &sk1, |x,_| x.into());
+
+        let sec1 = SharedSecret::new_with_hash(&pk1, &sk2, |x, _| x.into());
+        let sec2 = SharedSecret::new_with_hash(&pk2, &sk1, |x, _| x.into());
+        let sec_odd = SharedSecret::new_with_hash(&pk1, &sk1, |x, _| x.into());
         assert_eq!(sec1, sec2);
         assert_ne!(sec_odd, sec2);
     }
@@ -217,7 +231,14 @@ mod tests {
         let x = [5u8; 32];
         let y = [7u8; 32];
         let mut output = [0u8; 64];
-        let res = unsafe { super::c_callback(output.as_mut_ptr(), x.as_ptr(), y.as_ptr(), ::ptr::null_mut()) };
+        let res = unsafe {
+            super::c_callback(
+                output.as_mut_ptr(),
+                x.as_ptr(),
+                y.as_ptr(),
+                ::ptr::null_mut(),
+            )
+        };
         assert_eq!(res, 1);
         let mut new_x = [0u8; 32];
         let mut new_y = [0u8; 32];
@@ -231,20 +252,19 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod benches {
     use rand::thread_rng;
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
-    use super::SharedSecret;
     use super::super::Secp256k1;
+    use super::SharedSecret;
 
     #[bench]
     pub fn bench_ecdh(bh: &mut Bencher) {
         let s = Secp256k1::signing_only();
         let (sk, pk) = s.generate_keypair(&mut thread_rng());
 
-        bh.iter( || {
+        bh.iter(|| {
             let res = SharedSecret::new(&pk, &sk);
             black_box(res);
         });
     }
 }
-
