@@ -408,7 +408,7 @@ mod test {
     use from_hex;
     use Secp256k1;
 
-    use rand::{thread_rng, Error, ErrorKind, RngCore};
+    use rand::{thread_rng, Error, RngCore};
     use rand_core::impls;
     use std::iter;
     use std::str::FromStr;
@@ -593,7 +593,7 @@ mod test {
             }
 
             fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), Error> {
-                Err(Error::new(ErrorKind::Unavailable, "not implemented"))
+                Err(Error::new("not implemented"))
             }
         }
 
@@ -706,7 +706,7 @@ mod test {
                 self.next_u32() as u64
             }
             fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), Error> {
-                Err(Error::new(ErrorKind::Unavailable, "not implemented"))
+                Err(Error::new("not implemented"))
             }
 
             fn fill_bytes(&mut self, dest: &mut [u8]) {
