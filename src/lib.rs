@@ -37,18 +37,10 @@
 //! trigger any assertion failures in the upstream library.
 //!
 //! ```rust
-//! extern crate secp256k1;
-//! # #[cfg(feature="bitcoin_hashes")]
-//! extern crate bitcoin_hashes;
-//! # #[cfg(feature="rand")]
-//! extern crate rand;
-//!
-//! #
-//! # fn main() {
 //! # #[cfg(all(feature="rand", feature="bitcoin_hashes"))] {
-//! use rand::rngs::OsRng;
+//! use secp256k1::rand::rngs::OsRng;
 //! use secp256k1::{Secp256k1, Message};
-//! use bitcoin_hashes::sha256;
+//! use secp256k1::bitcoin_hashes::sha256;
 //!
 //! let secp = Secp256k1::new();
 //! let mut rng = OsRng::new().expect("OsRng");
@@ -57,7 +49,7 @@
 //!
 //! let sig = secp.sign(&message, &secret_key);
 //! assert!(secp.verify(&message, &sig, &public_key).is_ok());
-//! # } }
+//! # }
 //! ```
 //!
 //! The above code requires `rust-secp256k1` to be compiled with the `rand` and `bitcoin_hashes`
@@ -65,7 +57,6 @@
 //! Alternately, keys and messages can be parsed from slices, like
 //!
 //! ```rust
-//! # fn main() {
 //! use self::secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
 //!
 //! let secp = Secp256k1::new();
@@ -77,13 +68,11 @@
 //!
 //! let sig = secp.sign(&message, &secret_key);
 //! assert!(secp.verify(&message, &sig, &public_key).is_ok());
-//! # }
 //! ```
 //!
 //! Users who only want to verify signatures can use a cheaper context, like so:
 //!
 //! ```rust
-//! # fn main() {
 //! use secp256k1::{Secp256k1, Message, Signature, PublicKey};
 //!
 //! let secp = Secp256k1::verification_only();
@@ -114,18 +103,13 @@
 //!     0xc9, 0x42, 0x8f, 0xca, 0x69, 0xc1, 0x32, 0xa2,
 //! ]).expect("compact signatures are 64 bytes; DER signatures are 68-72 bytes");
 //!
+//! # #[cfg(not(rust_secp_fuzz))]
 //! assert!(secp.verify(&message, &sig, &public_key).is_ok());
-//! # }
 //! ```
 //!
 //! Observe that the same code using, say [`signing_only`](struct.Secp256k1.html#method.signing_only)
 //! to generate a context would simply not compile.
 //!
-
-#![crate_type = "lib"]
-#![crate_type = "rlib"]
-#![crate_type = "dylib"]
-#![crate_name = "secp256k1"]
 
 // Coding conventions
 #![deny(non_upper_case_globals)]
@@ -133,51 +117,54 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![warn(missing_docs)]
-
-// In general, rust is absolutely horrid at supporting users doing things like,
-// for example, compiling Rust code for real environments. Disable useless lints
-// that don't do anything but annoy us and cant actually ever be resolved.
-#![allow(bare_trait_objects)]
-#![allow(ellipsis_inclusive_range_patterns)]
-
-#![cfg_attr(feature = "dev", allow(unstable_features))]
-#![cfg_attr(feature = "dev", feature(plugin))]
-#![cfg_attr(feature = "dev", plugin(clippy))]
-
-
-#![cfg_attr(all(not(test), not(fuzztarget), not(feature = "std")), no_std)]
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 
 #[macro_use]
-pub extern crate secp256k1_sys;
-pub use secp256k1_sys as ffi;
+pub extern crate cashweb_secp256k1_sys;
+pub use cashweb_secp256k1_sys as ffi;
 
-#[cfg(feature = "bitcoin_hashes")] extern crate bitcoin_hashes;
-#[cfg(all(test, feature = "unstable"))] extern crate test;
-#[cfg(any(test, feature = "rand"))] pub extern crate rand;
-#[cfg(any(test))] extern crate rand_core;
-#[cfg(feature = "serde")] pub extern crate serde;
-#[cfg(all(test, feature = "serde"))] extern crate serde_test;
-#[cfg(any(test, feature = "rand"))] use rand::Rng;
-#[cfg(any(test, feature = "std"))] extern crate core;
+#[cfg(feature = "bitcoin_hashes")]
+pub extern crate bitcoin_hashes;
+#[cfg(any(test, feature = "rand"))]
+pub extern crate rand;
+#[cfg(any(test))]
+extern crate rand_core;
+#[cfg(feature = "serde")]
+pub extern crate serde;
+#[cfg(all(test, feature = "serde"))]
+extern crate serde_test;
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
+#[cfg(any(test, feature = "rand"))]
+use rand::Rng;
+#[cfg(any(test, feature = "std"))]
+extern crate core;
+#[cfg(all(test, target_arch = "wasm32"))]
+extern crate wasm_bindgen_test;
 
 use core::{fmt, ptr, str};
 
 #[macro_use]
 mod macros;
-mod context;
 pub mod constants;
+mod context;
 pub mod ecdh;
 pub mod key;
 #[cfg(feature = "recovery")]
 pub mod recovery;
+pub mod schnorrsig;
 
-pub use key::SecretKey;
-pub use key::PublicKey;
 pub use context::*;
 use core::marker::PhantomData;
+use core::mem;
 use core::ops::Deref;
-use ffi::CPtr;
+use ffi::{types::AlignedType, CPtr};
+pub use key::PublicKey;
+pub use key::SecretKey;
+
+#[cfg(feature = "global-context")]
+pub use context::global::SECP256K1;
 
 #[cfg(feature = "bitcoin_hashes")]
 use bitcoin_hashes::Hash;
@@ -194,30 +181,30 @@ pub struct SerializedSignature {
 }
 
 impl fmt::Debug for Signature {
-fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    fmt::Display::fmt(self, f)
-}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
 }
 
 impl fmt::Display for Signature {
-fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let sig = self.serialize_der();
-    for v in sig.iter() {
-        write!(f, "{:02x}", v)?;
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let sig = self.serialize_der();
+        for v in sig.iter() {
+            write!(f, "{:02x}", v)?;
+        }
+        Ok(())
     }
-    Ok(())
-}
 }
 
 impl str::FromStr for Signature {
-type Err = Error;
-fn from_str(s: &str) -> Result<Signature, Error> {
-    let mut res = [0; 72];
-    match from_hex(s, &mut res) {
-        Ok(x) => Signature::from_der(&res[0..x]),
-        _ => Err(Error::InvalidSignature),
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Signature, Error> {
+        let mut res = [0; 72];
+        match from_hex(s, &mut res) {
+            Ok(x) => Signature::from_der(&res[0..x]),
+            _ => Err(Error::InvalidSignature),
+        }
     }
-}
 }
 
 /// Trait describing something that promises to be a 32-byte random number; in particular,
@@ -283,18 +270,21 @@ impl SerializedSignature {
     }
 
     /// Check if the space is zero.
-    pub fn is_empty(&self) -> bool { self.len() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl Signature {
-#[inline]
+    #[inline]
     /// Converts a DER-encoded byte slice to a signature
     pub fn from_der(data: &[u8]) -> Result<Signature, Error> {
-        if data.is_empty() {return Err(Error::InvalidSignature);}
-
-        let mut ret = ffi::Signature::new();
+        if data.is_empty() {
+            return Err(Error::InvalidSignature);
+        }
 
         unsafe {
+            let mut ret = ffi::Signature::new();
             if ffi::secp256k1_ecdsa_signature_parse_der(
                 ffi::secp256k1_context_no_precomp,
                 &mut ret,
@@ -311,12 +301,12 @@ impl Signature {
 
     /// Converts a 64-byte compact-encoded byte slice to a signature
     pub fn from_compact(data: &[u8]) -> Result<Signature, Error> {
-        let mut ret = ffi::Signature::new();
         if data.len() != 64 {
-            return Err(Error::InvalidSignature)
+            return Err(Error::InvalidSignature);
         }
 
         unsafe {
+            let mut ret = ffi::Signature::new();
             if ffi::secp256k1_ecdsa_signature_parse_compact(
                 ffi::secp256k1_context_no_precomp,
                 &mut ret,
@@ -335,7 +325,9 @@ impl Signature {
     /// 2016. It should never be used in new applications. This library does not
     /// support serializing to this "format"
     pub fn from_der_lax(data: &[u8]) -> Result<Signature, Error> {
-        if data.is_empty() {return Err(Error::InvalidSignature);}
+        if data.is_empty() {
+            return Err(Error::InvalidSignature);
+        }
 
         unsafe {
             let mut ret = ffi::Signature::new();
@@ -385,13 +377,13 @@ impl Signature {
     /// Obtains a raw pointer suitable for use with FFI functions
     #[inline]
     pub fn as_ptr(&self) -> *const ffi::Signature {
-        &self.0 as *const _
+        &self.0
     }
 
     /// Obtains a raw mutable pointer suitable for use with FFI functions
     #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut ffi::Signature {
-        &mut self.0 as *mut _
+        &mut self.0
     }
 
     #[inline]
@@ -447,7 +439,6 @@ impl From<ffi::Signature> for Signature {
     }
 }
 
-
 #[cfg(feature = "serde")]
 impl ::serde::Serialize for Signature {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -456,14 +447,13 @@ impl ::serde::Serialize for Signature {
         } else {
             s.serialize_bytes(&self.serialize_der())
         }
-
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> ::serde::Deserialize<'de> for Signature {
     fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<Signature, D::Error> {
-        use ::serde::de::Error;
+        use serde::de::Error;
         use str::FromStr;
         if d.is_human_readable() {
             let sl: &str = ::serde::Deserialize::deserialize(d)?;
@@ -489,17 +479,13 @@ impl Message {
     /// [secure signature](https://twitter.com/pwuille/status/1063582706288586752).
     #[inline]
     pub fn from_slice(data: &[u8]) -> Result<Message, Error> {
-        if data == [0; constants::MESSAGE_SIZE] {
-            return Err(Error::InvalidMessage);
-        }
-
         match data.len() {
             constants::MESSAGE_SIZE => {
                 let mut ret = [0; constants::MESSAGE_SIZE];
                 ret[..].copy_from_slice(data);
                 Ok(Message(ret))
             }
-            _ => Err(Error::InvalidMessage)
+            _ => Err(Error::InvalidMessage),
         }
     }
 
@@ -507,6 +493,7 @@ impl Message {
     /// `bitcoin_hashes` to be enabled.
     /// ```rust
     /// extern crate bitcoin_hashes;
+    /// # extern crate secp256k1;
     /// use secp256k1::Message;
     /// use bitcoin_hashes::sha256;
     /// use bitcoin_hashes::Hash;
@@ -548,6 +535,8 @@ pub enum Error {
     InvalidRecoveryId,
     /// Invalid tweak for add_*_assign or mul_*_assign
     InvalidTweak,
+    /// `tweak_add_check` failed on an xonly public key
+    TweakCheckFailed,
     /// Didn't pass enough memory to context creation with preallocated memory
     NotEnoughMemory,
 }
@@ -562,6 +551,7 @@ impl Error {
             Error::InvalidSecretKey => "secp: malformed or out-of-range secret key",
             Error::InvalidRecoveryId => "secp: bad recovery id",
             Error::InvalidTweak => "secp: bad tweak",
+            Error::TweakCheckFailed => "secp: xonly_pubkey_tewak_add_check failed",
             Error::NotEnoughMemory => "secp: not enough memory allocated",
         }
     }
@@ -575,16 +565,13 @@ impl fmt::Display for Error {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Error {
-    fn description(&self) -> &str { self.as_str() }
-}
-
+impl std::error::Error for Error {}
 
 /// The secp256k1 engine, used to execute all signature operations
 pub struct Secp256k1<C: Context> {
     ctx: *mut ffi::Context,
     phantom: PhantomData<C>,
-    buf: *mut [u8],
+    size: usize,
 }
 
 // The underlying secp context does not contain any references to memory it does not own
@@ -592,9 +579,10 @@ unsafe impl<C: Context> Send for Secp256k1<C> {}
 // The API does not permit any mutation of `Secp256k1` objects except through `&mut` references
 unsafe impl<C: Context> Sync for Secp256k1<C> {}
 
-
 impl<C: Context> PartialEq for Secp256k1<C> {
-    fn eq(&self, _other: &Secp256k1<C>) -> bool { true }
+    fn eq(&self, _other: &Secp256k1<C>) -> bool {
+        true
+    }
 }
 
 impl Default for SerializedSignature {
@@ -627,13 +615,13 @@ impl Deref for SerializedSignature {
 
 impl Eq for SerializedSignature {}
 
-impl<C: Context> Eq for Secp256k1<C> { }
+impl<C: Context> Eq for Secp256k1<C> {}
 
 impl<C: Context> Drop for Secp256k1<C> {
     fn drop(&mut self) {
         unsafe {
             ffi::secp256k1_context_preallocated_destroy(self.ctx);
-            C::deallocate(self.buf);
+            C::deallocate(self.ctx as _, self.size);
         }
     }
 }
@@ -645,7 +633,6 @@ impl<C: Context> fmt::Debug for Secp256k1<C> {
 }
 
 impl<C: Context> Secp256k1<C> {
-
     /// Getter for the raw pointer to the underlying secp256k1 context. This
     /// shouldn't be needed with normal usage of the library. It enables
     /// extending the Secp256k1 with more cryptographic algorithms outside of
@@ -656,7 +643,10 @@ impl<C: Context> Secp256k1<C> {
 
     /// Returns the required memory for a preallocated context buffer in a generic manner(sign/verify/all)
     pub fn preallocate_size_gen() -> usize {
-        unsafe { ffi::secp256k1_context_preallocated_size(C::FLAGS) }
+        let word_size = mem::size_of::<AlignedType>();
+        let bytes = unsafe { ffi::secp256k1_context_preallocated_size(C::FLAGS) };
+
+        (bytes + word_size - 1) / word_size
     }
 
     /// (Re)randomizes the Secp256k1 context for cheap sidechannel resistance;
@@ -666,6 +656,13 @@ impl<C: Context> Secp256k1<C> {
     pub fn randomize<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         let mut seed = [0; 32];
         rng.fill_bytes(&mut seed);
+        self.seeded_randomize(&seed);
+    }
+
+    /// (Re)randomizes the Secp256k1 context for cheap sidechannel resistance given 32 bytes of
+    /// cryptographically-secure random data;
+    /// see comment in libsecp256k1 commit d2275795f by Gregory Maxwell.
+    pub fn seeded_randomize(&mut self, seed: &[u8; 32]) {
         unsafe {
             let err = ffi::secp256k1_context_randomize(self.ctx, seed.as_c_ptr());
             // This function cannot fail; it has an error return for future-proofing.
@@ -676,29 +673,132 @@ impl<C: Context> Secp256k1<C> {
             // However, if this DOES fail, the result is potentially weaker side-channel
             // resistance, which is deadly and undetectable, so we take out the entire
             // thread to be on the safe side.
-            assert!(err == 1);
+            assert_eq!(err, 1);
         }
     }
+}
 
+fn der_length_check(sig: &ffi::Signature, max_len: usize) -> bool {
+    let mut ser_ret = [0; 72];
+    let mut len: usize = ser_ret.len();
+    unsafe {
+        let err = ffi::secp256k1_ecdsa_signature_serialize_der(
+            ffi::secp256k1_context_no_precomp,
+            ser_ret.as_mut_c_ptr(),
+            &mut len,
+            sig,
+        );
+        debug_assert!(err == 1);
+    }
+    len <= max_len
+}
+
+fn compact_sig_has_zero_first_bit(sig: &ffi::Signature) -> bool {
+    let mut compact = [0; 64];
+    unsafe {
+        let err = ffi::secp256k1_ecdsa_signature_serialize_compact(
+            ffi::secp256k1_context_no_precomp,
+            compact.as_mut_c_ptr(),
+            sig,
+        );
+        debug_assert!(err == 1);
+    }
+    compact[0] < 0x80
 }
 
 impl<C: Signing> Secp256k1<C> {
-
     /// Constructs a signature for `msg` using the secret key `sk` and RFC6979 nonce
     /// Requires a signing-capable context.
-    pub fn sign(&self, msg: &Message, sk: &key::SecretKey)
-                -> Signature {
-
-        let mut ret = ffi::Signature::new();
+    pub fn sign(&self, msg: &Message, sk: &key::SecretKey) -> Signature {
         unsafe {
+            let mut ret = ffi::Signature::new();
             // We can assume the return value because it's not possible to construct
             // an invalid signature from a valid `Message` and `SecretKey`
-            assert_eq!(ffi::secp256k1_ecdsa_sign(self.ctx, &mut ret, msg.as_c_ptr(),
-                                                 sk.as_c_ptr(), ffi::secp256k1_nonce_function_rfc6979,
-                                                 ptr::null()), 1);
+            assert_eq!(
+                ffi::secp256k1_ecdsa_sign(
+                    self.ctx,
+                    &mut ret,
+                    msg.as_c_ptr(),
+                    sk.as_c_ptr(),
+                    ffi::secp256k1_nonce_function_rfc6979,
+                    ptr::null()
+                ),
+                1
+            );
+            Signature::from(ret)
         }
+    }
 
-        Signature::from(ret)
+    fn sign_grind_with_check(
+        &self,
+        msg: &Message,
+        sk: &key::SecretKey,
+        check: impl Fn(&ffi::Signature) -> bool,
+    ) -> Signature {
+        let mut entropy_p: *const ffi::types::c_void = ptr::null();
+        let mut counter: u32 = 0;
+        let mut extra_entropy = [0u8; 32];
+        loop {
+            unsafe {
+                let mut ret = ffi::Signature::new();
+                // We can assume the return value because it's not possible to construct
+                // an invalid signature from a valid `Message` and `SecretKey`
+                assert_eq!(
+                    ffi::secp256k1_ecdsa_sign(
+                        self.ctx,
+                        &mut ret,
+                        msg.as_c_ptr(),
+                        sk.as_c_ptr(),
+                        ffi::secp256k1_nonce_function_rfc6979,
+                        entropy_p
+                    ),
+                    1
+                );
+                if check(&ret) {
+                    return Signature::from(ret);
+                }
+
+                counter += 1;
+                // From 1.32 can use `to_le_bytes` instead
+                let le_counter = counter.to_le();
+                let le_counter_bytes: [u8; 4] = mem::transmute(le_counter);
+                for (i, b) in le_counter_bytes.iter().enumerate() {
+                    extra_entropy[i] = *b;
+                }
+
+                entropy_p = extra_entropy.as_ptr() as *const ffi::types::c_void;
+
+                // When fuzzing, these checks will usually spinloop forever, so just short-circuit them.
+                #[cfg(rust_secp_fuzz)]
+                return Signature::from(ret);
+            }
+        }
+    }
+
+    /// Constructs a signature for `msg` using the secret key `sk`, RFC6979 nonce
+    /// and "grinds" the nonce by passing extra entropy if necessary to produce
+    /// a signature that is less than 71 - bytes_to_grund bytes. The number
+    /// of signing operation performed by this function is exponential in the
+    /// number of bytes grinded.
+    /// Requires a signing capable context.
+    pub fn sign_grind_r(
+        &self,
+        msg: &Message,
+        sk: &key::SecretKey,
+        bytes_to_grind: usize,
+    ) -> Signature {
+        let len_check = |s: &ffi::Signature| der_length_check(s, 71 - bytes_to_grind);
+        return self.sign_grind_with_check(msg, sk, len_check);
+    }
+
+    /// Constructs a signature for `msg` using the secret key `sk`, RFC6979 nonce
+    /// and "grinds" the nonce by passing extra entropy if necessary to produce
+    /// a signature that is less than 71 bytes and compatible with the low r
+    /// signature implementation of bitcoin core. In average, this function
+    /// will perform two signing operations.
+    /// Requires a signing capable context.
+    pub fn sign_low_r(&self, msg: &Message, sk: &key::SecretKey) -> Signature {
+        return self.sign_grind_with_check(msg, sk, compact_sig_has_zero_first_bit);
     }
 
     /// Generates a random keypair. Convenience function for `key::SecretKey::new`
@@ -707,8 +807,10 @@ impl<C: Signing> Secp256k1<C> {
     /// with the "rand" feature.
     #[inline]
     #[cfg(any(test, feature = "rand"))]
-    pub fn generate_keypair<R: Rng + ?Sized>(&self, rng: &mut R)
-                                    -> (key::SecretKey, key::PublicKey) {
+    pub fn generate_keypair<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> (key::SecretKey, key::PublicKey) {
         let sk = key::SecretKey::new(rng);
         let pk = key::PublicKey::from_secret_key(self, &sk);
         (sk, pk)
@@ -723,13 +825,8 @@ impl<C: Verification> Secp256k1<C> {
     /// verify-capable context.
     ///
     /// ```rust
-    /// # extern crate secp256k1;
-    /// # #[cfg(feature="rand")]
-    /// # extern crate rand;
-    /// #
-    /// # fn main() {
     /// # #[cfg(feature="rand")] {
-    /// # use rand::OsRng;
+    /// # use secp256k1::rand::rngs::OsRng;
     /// # use secp256k1::{Secp256k1, Message, Error};
     /// #
     /// # let secp = Secp256k1::new();
@@ -742,12 +839,14 @@ impl<C: Verification> Secp256k1<C> {
     ///
     /// let message = Message::from_slice(&[0xcd; 32]).expect("32 bytes");
     /// assert_eq!(secp.verify(&message, &sig, &public_key), Err(Error::IncorrectSignature));
-    /// # } }
+    /// # }
     /// ```
     #[inline]
     pub fn verify(&self, msg: &Message, sig: &Signature, pk: &key::PublicKey) -> Result<(), Error> {
         unsafe {
-            if ffi::secp256k1_ecdsa_verify(self.ctx, sig.as_c_ptr(), msg.as_c_ptr(), pk.as_c_ptr()) == 0 {
+            if ffi::secp256k1_ecdsa_verify(self.ctx, sig.as_c_ptr(), msg.as_c_ptr(), pk.as_c_ptr())
+                == 0
+            {
                 Err(Error::IncorrectSignature)
             } else {
                 Ok(())
@@ -769,9 +868,9 @@ fn from_hex(hex: &str, target: &mut [u8]) -> Result<usize, ()> {
     for c in hex.bytes() {
         b <<= 4;
         match c {
-            b'A'...b'F' => b |= c - b'A' + 10,
-            b'a'...b'f' => b |= c - b'a' + 10,
-            b'0'...b'9' => b |= c - b'0',
+            b'A'..=b'F' => b |= c - b'A' + 10,
+            b'a'..=b'f' => b |= c - b'a' + 10,
+            b'0'..=b'9' => b |= c - b'0',
             _ => return Err(()),
         }
         if (idx & 1) == 1 {
@@ -783,29 +882,30 @@ fn from_hex(hex: &str, target: &mut [u8]) -> Result<usize, ()> {
     Ok(idx / 2)
 }
 
-
 #[cfg(test)]
 mod tests {
-    use rand::{RngCore, thread_rng};
-    use std::str::FromStr;
+    use rand::{thread_rng, RngCore};
     use std::marker::PhantomData;
+    use std::str::FromStr;
 
-    use key::{SecretKey, PublicKey};
-    use super::from_hex;
     use super::constants;
-    use super::{Secp256k1, Signature, Message};
-    use super::Error::{InvalidMessage, IncorrectSignature, InvalidSignature};
-    use ffi;
+    use super::from_hex;
+    use super::Error::{IncorrectSignature, InvalidMessage, InvalidSignature};
+    use super::{Message, Secp256k1, Signature};
     use context::*;
+    use ffi::{self, types::AlignedType};
+    use key::{PublicKey, SecretKey};
+
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     macro_rules! hex {
-        ($hex:expr) => ({
+        ($hex:expr) => {{
             let mut result = vec![0; $hex.len() / 2];
             from_hex($hex, &mut result).expect("valid hex string");
             result
-        });
+        }};
     }
-
 
     #[test]
     fn test_manual_create_destroy() {
@@ -813,10 +913,22 @@ mod tests {
         let ctx_sign = unsafe { ffi::secp256k1_context_create(SignOnlyPreallocated::FLAGS) };
         let ctx_vrfy = unsafe { ffi::secp256k1_context_create(VerifyOnlyPreallocated::FLAGS) };
 
-        let buf: *mut [u8] = &mut [0u8;0] as _;
-        let full: Secp256k1<AllPreallocated> = Secp256k1{ctx: ctx_full, phantom: PhantomData, buf};
-        let sign: Secp256k1<SignOnlyPreallocated> = Secp256k1{ctx: ctx_sign, phantom: PhantomData, buf};
-        let vrfy: Secp256k1<VerifyOnlyPreallocated> = Secp256k1{ctx: ctx_vrfy, phantom: PhantomData, buf};
+        let size = 0;
+        let full: Secp256k1<AllPreallocated> = Secp256k1 {
+            ctx: ctx_full,
+            phantom: PhantomData,
+            size,
+        };
+        let sign: Secp256k1<SignOnlyPreallocated> = Secp256k1 {
+            ctx: ctx_sign,
+            phantom: PhantomData,
+            size,
+        };
+        let vrfy: Secp256k1<VerifyOnlyPreallocated> = Secp256k1 {
+            ctx: ctx_vrfy,
+            phantom: PhantomData,
+            size,
+        };
 
         let (sk, pk) = full.generate_keypair(&mut thread_rng());
         let msg = Message::from_slice(&[2u8; 32]).unwrap();
@@ -828,7 +940,9 @@ mod tests {
         assert!(vrfy.verify(&msg, &sig, &pk).is_ok());
         assert!(full.verify(&msg, &sig, &pk).is_ok());
 
-        drop(full);drop(sign);drop(vrfy);
+        drop(full);
+        drop(sign);
+        drop(vrfy);
 
         unsafe { ffi::secp256k1_context_destroy(ctx_vrfy) };
         unsafe { ffi::secp256k1_context_destroy(ctx_sign) };
@@ -837,13 +951,15 @@ mod tests {
 
     #[test]
     fn test_raw_ctx() {
+        use std::mem::ManuallyDrop;
+
         let ctx_full = Secp256k1::new();
         let ctx_sign = Secp256k1::signing_only();
         let ctx_vrfy = Secp256k1::verification_only();
 
-        let full = unsafe {Secp256k1::from_raw_all(ctx_full.ctx)};
-        let sign = unsafe {Secp256k1::from_raw_signining_only(ctx_sign.ctx)};
-        let vrfy = unsafe {Secp256k1::from_raw_verification_only(ctx_vrfy.ctx)};
+        let mut full = unsafe { Secp256k1::from_raw_all(ctx_full.ctx) };
+        let mut sign = unsafe { Secp256k1::from_raw_signining_only(ctx_sign.ctx) };
+        let mut vrfy = unsafe { Secp256k1::from_raw_verification_only(ctx_vrfy.ctx) };
 
         let (sk, pk) = full.generate_keypair(&mut thread_rng());
         let msg = Message::from_slice(&[2u8; 32]).unwrap();
@@ -855,15 +971,22 @@ mod tests {
         assert!(vrfy.verify(&msg, &sig, &pk).is_ok());
         assert!(full.verify(&msg, &sig, &pk).is_ok());
 
-        drop(full);drop(sign);drop(vrfy);
-        drop(ctx_full);drop(ctx_sign);drop(ctx_vrfy);
+        unsafe {
+            ManuallyDrop::drop(&mut full);
+            ManuallyDrop::drop(&mut sign);
+            ManuallyDrop::drop(&mut vrfy);
+        }
+        drop(ctx_full);
+        drop(ctx_sign);
+        drop(ctx_vrfy);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     #[should_panic]
     fn test_panic_raw_ctx() {
         let ctx_vrfy = Secp256k1::verification_only();
-        let raw_ctx_verify_as_full = unsafe {Secp256k1::from_raw_all(ctx_vrfy.ctx)};
+        let raw_ctx_verify_as_full = unsafe { Secp256k1::from_raw_all(ctx_vrfy.ctx) };
         let (sk, _) = raw_ctx_verify_as_full.generate_keypair(&mut thread_rng());
         let msg = Message::from_slice(&[2u8; 32]).unwrap();
         // Try signing
@@ -872,16 +995,16 @@ mod tests {
 
     #[test]
     fn test_preallocation() {
-        let mut buf_ful = vec![0u8; Secp256k1::preallocate_size()];
-        let mut buf_sign = vec![0u8; Secp256k1::preallocate_signing_size()];
-        let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
-//
+        let mut buf_ful = vec![AlignedType::zeroed(); Secp256k1::preallocate_size()];
+        let mut buf_sign = vec![AlignedType::zeroed(); Secp256k1::preallocate_signing_size()];
+        let mut buf_vfy = vec![AlignedType::zeroed(); Secp256k1::preallocate_verification_size()];
+
         let full = Secp256k1::preallocated_new(&mut buf_ful).unwrap();
         let sign = Secp256k1::preallocated_signing_only(&mut buf_sign).unwrap();
         let vrfy = Secp256k1::preallocated_verification_only(&mut buf_vfy).unwrap();
 
-//        drop(buf_vfy); // The buffer can't get dropped before the context.
-//        println!("{:?}", buf_ful[5]); // Can't even read the data thanks to the borrow checker.
+        //        drop(buf_vfy); // The buffer can't get dropped before the context.
+        //        println!("{:?}", buf_ful[5]); // Can't even read the data thanks to the borrow checker.
 
         let (sk, pk) = full.generate_keypair(&mut thread_rng());
         let msg = Message::from_slice(&[2u8; 32]).unwrap();
@@ -947,7 +1070,7 @@ mod tests {
             assert!(Signature::from_compact(&compact[0..4]).is_err());
             assert!(Signature::from_der(&compact[..]).is_err());
             assert!(Signature::from_der(&der[0..4]).is_err());
-         }
+        }
     }
 
     #[test]
@@ -967,15 +1090,18 @@ mod tests {
         assert!(Signature::from_str(
             "3046022100839c1fbc5304de944f697c9f4b1d01d1faeba32d751c0f7acb21ac8a0f436a\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab4"
-        ).is_err());
+        )
+        .is_err());
         assert!(Signature::from_str(
             "3046022100839c1fbc5304de944f697c9f4b1d01d1faeba32d751c0f7acb21ac8a0f436a\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab"
-        ).is_err());
+        )
+        .is_err());
         assert!(Signature::from_str(
             "3046022100839c1fbc5304de944f697c9f4b1d01d1faeba32d751c0f7acb21ac8a0f436a\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eabxx"
-        ).is_err());
+        )
+        .is_err());
         assert!(Signature::from_str(
             "3046022100839c1fbc5304de944f697c9f4b1d01d1faeba32d751c0f7acb21ac8a0f436a\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab45\
@@ -983,7 +1109,8 @@ mod tests {
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab45\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab45\
              72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab45"
-        ).is_err());
+        )
+        .is_err());
 
         // 71 byte signature
         let hex_str = "30450221009d0bad576719d32ae76bedb34c774866673cbde3f4e12951555c9408e6ce774b02202876e7102f204f6bfee26c967c3926ce702cf97d4b010062e193f763190f6776";
@@ -1022,7 +1149,22 @@ mod tests {
             let (sk, pk) = s.generate_keypair(&mut thread_rng());
             let sig = s.sign(&msg, &sk);
             assert_eq!(s.verify(&msg, &sig, &pk), Ok(()));
-         }
+            let low_r_sig = s.sign_low_r(&msg, &sk);
+            assert_eq!(s.verify(&msg, &low_r_sig, &pk), Ok(()));
+            let grind_r_sig = s.sign_grind_r(&msg, &sk, 1);
+            assert_eq!(s.verify(&msg, &grind_r_sig, &pk), Ok(()));
+            let compact = sig.serialize_compact();
+            if compact[0] < 0x80 {
+                assert_eq!(sig, low_r_sig);
+            } else {
+                #[cfg(not(rust_secp_fuzz))] // mocked sig generation doesn't produce low-R sigs
+                assert_ne!(sig, low_r_sig);
+            }
+            #[cfg(not(rust_secp_fuzz))] // mocked sig generation doesn't produce low-R sigs
+            assert!(super::compact_sig_has_zero_first_bit(&low_r_sig.0));
+            #[cfg(not(rust_secp_fuzz))] // mocked sig generation doesn't produce low-R sigs
+            assert!(super::der_length_check(&grind_r_sig.0, 70));
+        }
     }
 
     #[test]
@@ -1045,11 +1187,21 @@ mod tests {
         wild_keys[1][0] -= 1;
         wild_msgs[1][0] -= 1;
 
-        for key in wild_keys.iter().map(|k| SecretKey::from_slice(&k[..]).unwrap()) {
-            for msg in wild_msgs.iter().map(|m| Message::from_slice(&m[..]).unwrap()) {
+        for key in wild_keys
+            .iter()
+            .map(|k| SecretKey::from_slice(&k[..]).unwrap())
+        {
+            for msg in wild_msgs
+                .iter()
+                .map(|m| Message::from_slice(&m[..]).unwrap())
+            {
                 let sig = s.sign(&msg, &key);
+                let low_r_sig = s.sign_low_r(&msg, &key);
+                let grind_r_sig = s.sign_grind_r(&msg, &key, 1);
                 let pk = PublicKey::from_secret_key(&s, &key);
                 assert_eq!(s.verify(&msg, &sig, &pk), Ok(()));
+                assert_eq!(s.verify(&msg, &low_r_sig, &pk), Ok(()));
+                assert_eq!(s.verify(&msg, &grind_r_sig, &pk), Ok(()));
             }
         }
     }
@@ -1075,23 +1227,29 @@ mod tests {
 
     #[test]
     fn test_bad_slice() {
-        assert_eq!(Signature::from_der(&[0; constants::MAX_SIGNATURE_SIZE + 1]),
-                   Err(InvalidSignature));
-        assert_eq!(Signature::from_der(&[0; constants::MAX_SIGNATURE_SIZE]),
-                   Err(InvalidSignature));
-
-        assert_eq!(Message::from_slice(&[0; constants::MESSAGE_SIZE - 1]),
-                   Err(InvalidMessage));
-        assert_eq!(Message::from_slice(&[0; constants::MESSAGE_SIZE + 1]),
-                   Err(InvalidMessage));
         assert_eq!(
-            Message::from_slice(&[0; constants::MESSAGE_SIZE]),
+            Signature::from_der(&[0; constants::MAX_SIGNATURE_SIZE + 1]),
+            Err(InvalidSignature)
+        );
+        assert_eq!(
+            Signature::from_der(&[0; constants::MAX_SIGNATURE_SIZE]),
+            Err(InvalidSignature)
+        );
+
+        assert_eq!(
+            Message::from_slice(&[0; constants::MESSAGE_SIZE - 1]),
             Err(InvalidMessage)
         );
+        assert_eq!(
+            Message::from_slice(&[0; constants::MESSAGE_SIZE + 1]),
+            Err(InvalidMessage)
+        );
+        assert!(Message::from_slice(&[0; constants::MESSAGE_SIZE]).is_ok());
         assert!(Message::from_slice(&[1; constants::MESSAGE_SIZE]).is_ok());
     }
 
     #[test]
+    #[cfg(not(rust_secp_fuzz))] // fixed sig vectors can't work with fuzz-sigs
     fn test_low_s() {
         // nb this is a transaction on testnet
         // txid 8ccc87b72d766ab3128f03176bb1c98293f2d1f85ebfaf07b82cc81ea6891fa9
@@ -1112,10 +1270,44 @@ mod tests {
         assert_eq!(secp.verify(&msg, &sig, &pk), Ok(()));
     }
 
+    #[test]
+    #[cfg(not(rust_secp_fuzz))] // fuzz-sigs have fixed size/format
+    fn test_low_r() {
+        let secp = Secp256k1::new();
+        let msg = hex!("887d04bb1cf1b1554f1b268dfe62d13064ca67ae45348d50d1392ce2d13418ac");
+        let msg = Message::from_slice(&msg).unwrap();
+        let sk =
+            SecretKey::from_str("57f0148f94d13095cfda539d0da0d1541304b678d8b36e243980aab4e1b7cead")
+                .unwrap();
+        let expected_sig = hex!("047dd4d049db02b430d24c41c7925b2725bcd5a85393513bdec04b4dc363632b1054d0180094122b380f4cfa391e6296244da773173e78fc745c1b9c79f7b713");
+        let expected_sig = Signature::from_compact(&expected_sig).unwrap();
+
+        let sig = secp.sign_low_r(&msg, &sk);
+
+        assert_eq!(expected_sig, sig);
+    }
+
+    #[test]
+    #[cfg(not(rust_secp_fuzz))] // fuzz-sigs have fixed size/format
+    fn test_grind_r() {
+        let secp = Secp256k1::new();
+        let msg = hex!("ef2d5b9a7c61865a95941d0f04285420560df7e9d76890ac1b8867b12ce43167");
+        let msg = Message::from_slice(&msg).unwrap();
+        let sk =
+            SecretKey::from_str("848355d75fe1c354cf05539bb29b2015f1863065bcb6766b44d399ab95c3fa0b")
+                .unwrap();
+        let expected_sig = Signature::from_str("304302202ffc447100d518c8ba643d11f3e6a83a8640488e7d2537b1954b942408be6ea3021f26e1248dd1e52160c3a38af9769d91a1a806cab5f9d508c103464d3c02d6e1").unwrap();
+
+        let sig = secp.sign_grind_r(&msg, &sk, 2);
+
+        assert_eq!(expected_sig, sig);
+    }
+
     #[cfg(feature = "serde")]
+    #[cfg(not(rust_secp_fuzz))] // fixed sig vectors can't work with fuzz-sigs
     #[test]
     fn test_signature_serde() {
-        use serde_test::{Configure, Token, assert_tokens};
+        use serde_test::{assert_tokens, Configure, Token};
 
         let s = Secp256k1::new();
 
@@ -1123,11 +1315,10 @@ mod tests {
         let sk = SecretKey::from_slice(&[2; 32]).unwrap();
         let sig = s.sign(&msg, &sk);
         static SIG_BYTES: [u8; 71] = [
-            48, 69, 2, 33, 0, 157, 11, 173, 87, 103, 25, 211, 42, 231, 107, 237,
-            179, 76, 119, 72, 102, 103, 60, 189, 227, 244, 225, 41, 81, 85, 92, 148,
-            8, 230, 206, 119, 75, 2, 32, 40, 118, 231, 16, 47, 32, 79, 107, 254,
-            226, 108, 150, 124, 57, 38, 206, 112, 44, 249, 125, 75, 1, 0, 98, 225,
-            147, 247, 99, 25, 15, 103, 118
+            48, 69, 2, 33, 0, 157, 11, 173, 87, 103, 25, 211, 42, 231, 107, 237, 179, 76, 119, 72,
+            102, 103, 60, 189, 227, 244, 225, 41, 81, 85, 92, 148, 8, 230, 206, 119, 75, 2, 32, 40,
+            118, 231, 16, 47, 32, 79, 107, 254, 226, 108, 150, 124, 57, 38, 206, 112, 44, 249, 125,
+            75, 1, 0, 98, 225, 147, 247, 99, 25, 15, 103, 118,
         ];
         static SIG_STR: &'static str = "\
             30450221009d0bad576719d32ae76bedb34c774866673cbde3f4e12951555c9408e6ce77\
@@ -1138,31 +1329,22 @@ mod tests {
         assert_tokens(&sig.readable(), &[Token::BorrowedStr(SIG_STR)]);
     }
 
-    // For WASM, just run through our general tests in this file all at once.
-    #[cfg(target_arch = "wasm32")]
-    extern crate wasm_bindgen_test;
-    #[cfg(target_arch = "wasm32")]
-    use self::wasm_bindgen_test::*;
-    #[cfg(target_arch = "wasm32")]
-    #[wasm_bindgen_test]
-    fn stuff() {
-        test_manual_create_destroy();
-        test_raw_ctx();
-        // Note that, sadly, WASM doesn't currently properly unwind panics, so use of the library
-        // via unsafe primitives may cause abort() instead of catch-able panics.
-        /*assert!(std::panic::catch_unwind(|| {
-            test_panic_raw_ctx();
-        }).is_err());*/
-        test_preallocation();
-        capabilities();
-        signature_serialize_roundtrip();
-        signature_display();
-        signature_lax_der();
-        sign_and_verify();
-        sign_and_verify_extreme();
-        sign_and_verify_fail();
-        test_bad_slice();
-        test_low_s();
+    #[cfg(feature = "global-context")]
+    #[test]
+    fn test_global_context() {
+        use super::SECP256K1;
+
+        let sk_data = hex!("e6dd32f8761625f105c39a39f19370b3521d845a12456d60ce44debd0a362641");
+        let sk = SecretKey::from_slice(&sk_data).unwrap();
+        let msg_data = hex!("a4965ca63b7d8562736ceec36dfa5a11bf426eb65be8ea3f7a49ae363032da0d");
+        let msg = Message::from_slice(&msg_data).unwrap();
+
+        // Check usage as explicit parameter
+        let pk = PublicKey::from_secret_key(&SECP256K1, &sk);
+
+        // Check usage as self
+        let sig = SECP256K1.sign(&msg, &sk);
+        assert!(SECP256K1.verify(&msg, &sig, &pk).is_ok());
     }
 
     #[cfg(feature = "bitcoin_hashes")]
@@ -1194,9 +1376,9 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod benches {
     use rand::{thread_rng, RngCore};
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
-    use super::{Secp256k1, Message};
+    use super::{Message, Secp256k1};
 
     #[bench]
     pub fn generate(bh: &mut Bencher) {
@@ -1212,8 +1394,8 @@ mod benches {
             }
 
             fn fill_bytes(&mut self, dest: &mut [u8]) {
-                for chunk in dest.chunks_mut(64/8) {
-                    let rand: [u8; 64/8] = unsafe {std::mem::transmute(self.next_u64())};
+                for chunk in dest.chunks_mut(64 / 8) {
+                    let rand: [u8; 64 / 8] = unsafe { std::mem::transmute(self.next_u64()) };
                     chunk.copy_from_slice(&rand[..chunk.len()]);
                 }
             }
@@ -1223,10 +1405,9 @@ mod benches {
             }
         }
 
-
         let s = Secp256k1::new();
         let mut r = CounterRng(0);
-        bh.iter( || {
+        bh.iter(|| {
             let (sk, pk) = s.generate_keypair(&mut r);
             black_box(sk);
             black_box(pk);

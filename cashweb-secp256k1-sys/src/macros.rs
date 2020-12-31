@@ -36,11 +36,24 @@ macro_rules! impl_array_newtype {
 
             #[inline]
             /// Returns the length of the object as an array
-            pub fn len(&self) -> usize { $len }
+            pub fn len(&self) -> usize {
+                $len
+            }
 
             #[inline]
             /// Returns whether the object as an array is empty
-            pub fn is_empty(&self) -> bool { false }
+            pub fn is_empty(&self) -> bool {
+                false
+            }
+        }
+
+        impl AsRef<[$ty; $len]> for $thing {
+            #[inline]
+            /// Gets a reference to the underlying array
+            fn as_ref(&self) -> &[$ty; $len] {
+                let &$thing(ref dat) = self;
+                dat
+            }
         }
 
         impl PartialEq for $thing {
@@ -123,7 +136,7 @@ macro_rules! impl_array_newtype {
                 &dat[..]
             }
         }
-        impl ::CPtr for $thing {
+        impl $crate::CPtr for $thing {
             type Target = $ty;
             fn as_c_ptr(&self) -> *const Self::Target {
                 if self.is_empty() {
@@ -141,7 +154,7 @@ macro_rules! impl_array_newtype {
                 }
             }
         }
-    }
+    };
 }
 
 #[macro_export]
@@ -155,5 +168,5 @@ macro_rules! impl_raw_debug {
                 Ok(())
             }
         }
-     }
+    };
 }

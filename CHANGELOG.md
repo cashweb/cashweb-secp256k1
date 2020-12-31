@@ -1,14 +1,25 @@
 
+# 0.19.0 - 2020-08-27
+
+* **Update MSRV to 1.29.0**
+
+# 0.18.0 - 2020-08-26
+
+* Add feature-gated `bitcoin_hashes` dependency and [`ThirtyTwoByteHash` trait](https://github.com/rust-bitcoin/rust-secp256k1/pull/206/)
+* Add feature-gated [global static context](https://github.com/rust-bitcoin/rust-secp256k1/pull/224) 
+* Allow [all-zero messages](https://github.com/rust-bitcoin/rust-secp256k1/pull/207) to be constructed
+* Bump rust-secp-sys to 0.2.0
+
 # 0.17.2
 - Fix linking in the `fuzztarget` feature.
 
 # 0.17.1
 
-- Correctly prefix the secp256k1-sys links field in Cargo.toml.
+- Correctly prefix the cashweb-secp256k1-sys links field in Cargo.toml.
 
 # 0.17.0
 
-- Move FFI into secp256k1-sys crate.
+- Move FFI into cashweb-secp256k1-sys crate.
 - Add `external-symbols` feature for not building upstream.
 - Add functions to create a context from a raw pointer.
 - Support passing custom hash functions to ECDH.

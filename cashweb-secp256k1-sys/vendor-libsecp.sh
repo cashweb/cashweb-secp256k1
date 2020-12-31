@@ -3,8 +3,8 @@ set -e
 
 
 if [ -z "$1" ] | [ -z "$2" ]; then
-  echo "\$1 parameter must be the rust-secp256k1-sys depend directory"
-  echo "\$2 parameter must be the rust-secp256k1-sys version code (M_m_p format)"
+  echo "\$1 parameter must be the rust-cashweb-secp256k1-sys depend directory"
+  echo "\$2 parameter must be the rust-cashweb-secp256k1-sys version code (M_m_p format)"
   echo "\$3 parameter (optional) can be the revision to check out"
   exit 1
 fi
