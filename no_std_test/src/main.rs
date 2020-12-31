@@ -45,18 +45,18 @@
 #![feature(panic_info_message)]
 #![no_std]
 extern crate libc;
-extern crate secp256k1;
+extern crate cashweb_secp256k1;
 extern crate serde_cbor;
 
 use core::fmt::{self, write, Write};
 use core::intrinsics;
 use core::panic::PanicInfo;
 
-use secp256k1::ecdh::SharedSecret;
-use secp256k1::ffi::types::AlignedType;
-use secp256k1::rand::{self, RngCore};
-use secp256k1::serde::Serialize;
-use secp256k1::*;
+use cashweb_secp256k1::ecdh::SharedSecret;
+use cashweb_secp256k1::ffi::types::AlignedType;
+use cashweb_secp256k1::rand::{self, RngCore};
+use cashweb_secp256k1::serde::Serialize;
+use cashweb_secp256k1::*;
 
 use serde_cbor::de;
 use serde_cbor::ser::SliceWrite;

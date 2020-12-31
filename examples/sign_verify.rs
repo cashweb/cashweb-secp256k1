@@ -1,8 +1,8 @@
 extern crate bitcoin_hashes;
-extern crate secp256k1;
+extern crate cashweb_secp256k1;
 
 use bitcoin_hashes::{sha256, Hash};
-use secp256k1::{
+use cashweb_secp256k1::{
     Error, Message, PublicKey, Secp256k1, SecretKey, Signature, Signing, Verification,
 };
 

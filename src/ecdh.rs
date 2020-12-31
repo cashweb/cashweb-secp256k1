@@ -128,8 +128,8 @@ impl SharedSecret {
     /// `SharedSecret` can be easily created via the `From` impl from arrays.
     /// # Examples
     /// ```
-    /// # use secp256k1::ecdh::SharedSecret;
-    /// # use secp256k1::{Secp256k1, PublicKey, SecretKey};
+    /// # use cashweb_secp256k1::ecdh::SharedSecret;
+    /// # use cashweb_secp256k1::{Secp256k1, PublicKey, SecretKey};
     /// # fn sha2(_a: &[u8], _b: &[u8]) -> [u8; 32] {[0u8; 32]}
     /// # let secp = Secp256k1::signing_only();
     /// # let secret_key = SecretKey::from_slice(&[3u8; 32]).unwrap();

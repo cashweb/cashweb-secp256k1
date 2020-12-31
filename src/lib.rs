@@ -38,9 +38,9 @@
 //!
 //! ```rust
 //! # #[cfg(all(feature="rand", feature="bitcoin_hashes"))] {
-//! use secp256k1::rand::rngs::OsRng;
-//! use secp256k1::{Secp256k1, Message};
-//! use secp256k1::bitcoin_hashes::sha256;
+//! use cashweb_secp256k1::rand::rngs::OsRng;
+//! use cashweb_secp256k1::{Secp256k1, Message};
+//! use cashweb_secp256k1::bitcoin_hashes::sha256;
 //!
 //! let secp = Secp256k1::new();
 //! let mut rng = OsRng::new().expect("OsRng");
@@ -57,7 +57,7 @@
 //! Alternately, keys and messages can be parsed from slices, like
 //!
 //! ```rust
-//! use self::secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
+//! use self::cashweb_secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
 //!
 //! let secp = Secp256k1::new();
 //! let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
@@ -73,7 +73,7 @@
 //! Users who only want to verify signatures can use a cheaper context, like so:
 //!
 //! ```rust
-//! use secp256k1::{Secp256k1, Message, Signature, PublicKey};
+//! use cashweb_secp256k1::{Secp256k1, Message, Signature, PublicKey};
 //!
 //! let secp = Secp256k1::verification_only();
 //!
@@ -493,8 +493,8 @@ impl Message {
     /// `bitcoin_hashes` to be enabled.
     /// ```rust
     /// extern crate bitcoin_hashes;
-    /// # extern crate secp256k1;
-    /// use secp256k1::Message;
+    /// # extern crate cashweb_secp256k1;
+    /// use cashweb_secp256k1::Message;
     /// use bitcoin_hashes::sha256;
     /// use bitcoin_hashes::Hash;
     ///
@@ -826,8 +826,8 @@ impl<C: Verification> Secp256k1<C> {
     ///
     /// ```rust
     /// # #[cfg(feature="rand")] {
-    /// # use secp256k1::rand::rngs::OsRng;
-    /// # use secp256k1::{Secp256k1, Message, Error};
+    /// # use cashweb_secp256k1::rand::rngs::OsRng;
+    /// # use cashweb_secp256k1::{Secp256k1, Message, Error};
     /// #
     /// # let secp = Secp256k1::new();
     /// # let mut rng = OsRng::new().expect("OsRng");
