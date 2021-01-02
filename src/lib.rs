@@ -43,7 +43,7 @@
 //! use cashweb_secp256k1::bitcoin_hashes::sha256;
 //!
 //! let secp = Secp256k1::new();
-//! let mut rng = OsRng::default();
+//! let mut rng = OsRng::new().expect("OsRng");
 //! let (secret_key, public_key) = secp.generate_keypair(&mut rng);
 //! let message = Message::from_hashed_data::<sha256::Hash>("Hello World!".as_bytes());
 //!
@@ -830,7 +830,7 @@ impl<C: Verification> Secp256k1<C> {
     /// # use cashweb_secp256k1::{Secp256k1, Message, Error};
     /// #
     /// # let secp = Secp256k1::new();
-    /// # let mut rng = OsRng::default();
+    /// # let mut rng = OsRng::new().expect("OsRng");
     /// # let (secret_key, public_key) = secp.generate_keypair(&mut rng);
     /// #
     /// let message = Message::from_slice(&[0xab; 32]).expect("32 bytes");
