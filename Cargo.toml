@@ -1,12 +1,12 @@
 [package]
 name = "cashweb-secp256k1"
-version = "0.19.0"
+version = "0.19.1"
 authors = [ "Dawid Ciężarkiewicz <dpc@ucore.info>",
             "Andrew Poelstra <apoelstra@wpsoftware.net>" ]
 license = "CC0-1.0"
 homepage = "https://github.com/cashweb/cashweb-secp256k1/"
 repository = "https://github.com/cashweb/cashweb-secp256k1/"
-documentation = "https://docs.rs/secp256k1/"
+documentation = "https://docs.rs/cashweb-secp256k1/"
 description = "Rust bindings for Pieter Wuille's `libsecp256k1` library. Implements ECDSA for the SECG elliptic curve group secp256k1 and related utilities."
 keywords = [ "crypto", "ECDSA", "secp256k1", "libsecp256k1", "bitcoin" ]
 readme = "README.md"
@@ -28,19 +28,19 @@ global-context = ["std", "rand-std"]
 
 [dependencies]
 cashweb-secp256k1-sys = { version = "0.3.1", default-features = false, path = "./cashweb-secp256k1-sys" }
-bitcoin_hashes = { version = "0.9", optional = true }
-rand = { version = "0.6", default-features = false, optional = true }
-serde = { version = "1.0", default-features = false, optional = true }
+bitcoin_hashes = { version = "0.9.4", optional = true }
+rand = { version = "0.6.0", default-features = false, optional = true }
+serde = { version = "1.0.118", default-features = false, optional = true }
 
 
 [dev-dependencies]
-rand = "0.6"
-rand_core = "0.4"
-serde_test = "1.0"
-bitcoin_hashes = "0.9"
+rand = "0.6.0"
+rand_core = "0.4.0"
+serde_test = "1.0.118"
+bitcoin_hashes = "0.9.4"
 
 [target.wasm32-unknown-unknown.dev-dependencies]
-wasm-bindgen-test = "0.3"
+wasm-bindgen-test = "0.3.19"
 rand = { version = "0.6", features = ["wasm-bindgen"] }
 
 
