@@ -29,13 +29,13 @@ global-context = ["std", "rand-std"]
 [dependencies]
 cashweb-secp256k1-sys = { version = "0.3.1", default-features = false, path = "./cashweb-secp256k1-sys" }
 bitcoin_hashes = { version = "0.9.4", optional = true }
-rand = { version = "0.8.0", default-features = false, optional = true }
+rand = { version = "0.6.0", default-features = false, optional = true }
 serde = { version = "1.0.118", default-features = false, optional = true }
 
 
 [dev-dependencies]
-rand = "0.8.0"
-rand_core = "0.6.0"
+rand = "0.6.0"
+rand_core = "0.4.0"
 serde_test = "1.0.118"
 bitcoin_hashes = "0.9.4"
 
